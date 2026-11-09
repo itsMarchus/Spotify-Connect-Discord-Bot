@@ -9,38 +9,50 @@
 [![Vulnerabilities](https://img.shields.io/badge/vulnerabilities-0-brightgreen.svg)](https://www.npmjs.com/)
 [![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
 
-A Discord voice bot that turns your Discord voice channel into a native **Spotify Connect** speaker. 
+A Discord voice bot that turns your Discord voice channel into a native, wireless **Spotify Connect** speaker.
 
-Instead of typing text commands like `!play <url>`, `!skip`, or `/queue`, this bot registers directly as an available speaker in your Spotify app. You can control track playback, scrub time, playlists, and volume straight from Spotify on your phone, desktop, or web client.
+Instead of typing text commands like `!play <url>`, `!skip`, or `/queue`, control track playback, scrub time, playlists, and volume straight from the official Spotify app on your phone, tablet, or PC.
 
 ---
 
-## ✨ Features
+## ✨ Why This Approach?
 
-* **Native Spotify Controls:** Play, pause, skip, scrub tracks, and manage your queue directly inside the official Spotify app.
-* **No Bot Chat Spam:** Zero chat commands or prefixed slash commands needed in text channels.
-* **Direct PCM Audio Streaming:** Uses `librespot` to decode the Spotify stream into raw PCM audio and streams it into Discord via `@discordjs/voice`.
-* **Zero Vulnerabilities & Pure JS Encoding:** Powered by `opusscript` and `@yao-pkg/pkg` — no native C++ compiler (Visual Studio / node-gyp) required.
-* **Discord DAVE Protocol Ready:** Fully supports Discord's End-to-End Encrypted (DAVE) voice gateway.
-* **Standalone Executable:** Can be packaged into a single double-clickable `.exe` (`run-bot.exe`) for non-technical users.
+Recent Spotify updates broke reverse-engineered third-party clients (like `librespot`), causing frequent `AudioKeyError` track-skipping bugs due to server-side DRM restrictions.
+
+This bot uses an official **Spotify Desktop + Virtual Audio Loopback (VB-CABLE)** architecture:
+* **🛡️ 100% DRM-Proof:** Uses the official Spotify client with genuine Widevine/PlayReady DRM licenses. Zero track skipping, zero audio key errors.
+* **📱 Wireless Phone Control:** Use native Spotify Connect on your mobile device (iOS / Android) to cast, queue, and control playback on your desktop host.
+* **🎧 Full Sound Isolation:** Spotify routes silently into the virtual cable. Your games, Discord voice chats, and personal PC audio stay in your headphones and are never broadcast.
+* **⚡ Studio Quality Audio:** Captures pure 48kHz 16-bit stereo PCM audio with zero latency overhead.
+* **🔒 Zero Vulnerabilities & Pure JS Encoding:** Powered by `opusscript` and `@yao-pkg/pkg` — no native C++ compiler (Visual Studio / node-gyp) required.
+* **🚀 Discord DAVE Protocol Ready:** Fully compliant with Discord's End-to-End Encrypted (DAVE) voice gateway.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Control Layer
-        A[Spotify App\nPhone, PC, Tablet] -->|Spotify Connect Protocol\nSpirc / Zeroconf| B[librespot Daemon\nEmulated Speaker]
+flowchart LR
+    subgraph Mobile [Remote Control]
+        Phone["📱 Spotify Mobile App<br/>(iOS / Android)"]
     end
 
-    subgraph Host Process
-        B -->|Raw PCM stdout pipe\n16-bit 48kHz stereo| C[Discord Audio Bridge\nbot.js]
-        C -->|Opus Encoding\nopusscript / prism-media| D[Discord Voice Client\n@discordjs/voice]
+    subgraph HostPC [Windows Host Machine]
+        Phone -- "Spotify Connect (Native)" --> SpotifyApp["🎵 Official Spotify Desktop App<br/>(Official DRM - Zero Skipping)"]
+        SpotifyApp -- "Windows Volume Mixer<br/>Output Routing" --> VBCableIn["🎛️ CABLE Input<br/>(VB-Audio Virtual Cable)"]
+        VBCableIn -. "Internal Audio Driver" .-> VBCableOut["🎙️ CABLE Output<br/>(DirectShow Recording Endpoint)"]
+        
+        subgraph BotSystem [Discord Voice Bot Process]
+            FFmpeg["⚡ ffmpeg.exe<br/>(dshow capture, S16LE 48kHz Stereo)"]
+            VBCableOut --> FFmpeg
+            FFmpeg -- "Raw PCM stdout" --> NodeStream["bot.js Audio Pipeline"]
+            NodeStream --> AudioResource["createAudioResource(Raw)"]
+            AudioResource --> DiscordVoice["@discordjs/voice Player"]
+        end
     end
 
-    subgraph Discord
-        D -->|RTP / WebRTC Voice Gateway| E[Discord Voice Channel]
+    subgraph DiscordCloud [Discord Server]
+        DiscordVoice -- "Opus UDP Stream (DAVE Protocol)" --> VoiceChannel["🔊 Voice Channel"]
     end
 ```
 
@@ -50,10 +62,11 @@ flowchart TD
 
 | Requirement | Details | Why it's needed |
 | :--- | :--- | :--- |
-| **Spotify Account** | **Spotify Premium** | Mandatory by Spotify to register a Spotify Connect (Spirc) endpoint. |
-| **Discord Bot** | Bot Token & Application | Required to connect to Discord and stream audio to voice channels. |
-| **Discord Permissions** | `Connect`, `Speak`, `Use Voice Activity` | Essential voice channel permissions for the bot role. |
-| **Operating System** | Windows, macOS, or Linux | Supported natively via Node.js or pre-compiled binaries. |
+| **Spotify Account** | Free or Premium | Official Spotify Desktop plays for all account tiers. |
+| **Spotify Desktop App** | Installed on Host PC | Acts as the official playback engine and Spotify Connect target. |
+| **VB-Audio Virtual Cable** | Free Windows driver ([Download](https://vb-audio.com/Cable/)) | Routes Spotify's audio into the bot without mixing your PC sounds. |
+| **Discord Bot** | Bot Token & Application | Required to connect to Discord and stream audio to your voice channel. |
+| **Discord Permissions** | `Connect`, `Speak`, `Use Voice Activity` | Essential voice channel permissions for the bot. |
 
 ---
 
@@ -61,30 +74,45 @@ flowchart TD
 
 If you are running the pre-compiled version and do not wish to build from source:
 
-1. **Download the latest release:**
-   Go to the [Releases](../../releases) page and download the `spotify-connect-discord-bot-windows-x64.zip`.
-2. **Extract the ZIP:**
-   Ensure all files remain in the same directory:
+### 1. Install VB-Audio Virtual Cable (Free)
+1. Download VB-CABLE from [vb-audio.com/Cable/](https://vb-audio.com/Cable/).
+2. Extract the ZIP archive, right-click **`VBCABLE_Setup_x64.exe`**, and select **"Run as administrator"**.
+3. Click **Install Driver**.
+
+### 2. Download the Bot Package
+1. Go to the [Releases](../../releases) page and download `spotify-connect-discord-bot-windows-x64.zip`.
+2. Extract the ZIP archive. Keep all files in the same folder:
    ```
    ├── run-bot.exe
-   ├── librespot.exe
-   └── .env.example
+   ├── ffmpeg.exe
+   ├── .env.example
+   ├── README.md
+   └── LICENSE
    ```
-3. **Configure your `.env`:**
-   * Rename `.env.example` to `.env`.
-   * Open `.env` in any text editor and fill in your Discord credentials:
-     ```ini
-     DISCORD_TOKEN=your_bot_token_here
-     GUILD_ID=your_server_id_here
-     VOICE_CHANNEL_ID=your_voice_channel_id_here
-     SPOTIFY_DEVICE_NAME=Discord Bot Speaker
-     ```
-4. **Launch the bot:**
-   Double-click `run-bot.exe`. The console will authenticate with Discord and join your voice channel.
-5. **Connect & Play:**
-   * Open Spotify on your phone or PC (connected to the same local network).
-   * Click the **Devices** (speaker) icon.
-   * Select **Discord Bot Speaker** and start playing music!
+
+### 3. Route Spotify Desktop to the Virtual Cable
+1. Open the **Spotify Desktop app** and start playing any song.
+2. Open Windows **Settings** $\rightarrow$ **System** $\rightarrow$ **Sound** $\rightarrow$ **Volume mixer** *(or search "Volume mixer" in Windows)*.
+3. Locate **Spotify** under the Apps section:
+   * Change its **Output device** from *Default* to:
+     👉 **`CABLE Input (VB-Audio Virtual Cable)`**
+
+*(Spotify will now play silently into the virtual cable. Your headphones remain free for your games, music, or Discord calls!)*
+
+### 4. Configure your `.env`
+1. Copy `.env.example` and rename it to `.env`.
+2. Open `.env` in any text editor and fill in your Discord credentials:
+   ```ini
+   DISCORD_TOKEN=your_bot_token_here
+   GUILD_ID=your_server_id_here
+   VOICE_CHANNEL_ID=your_voice_channel_id_here
+   AUDIO_DEVICE_NAME=CABLE Output (VB-Audio Virtual Cable)
+   ```
+
+### 5. Launch and Enjoy!
+Double-click **`run-bot.exe`**.
+* The bot will join your designated voice channel.
+* Open Spotify on your phone (or PC), select your PC under the **Devices / Connect** menu, and start playing music!
 
 ---
 
@@ -102,38 +130,22 @@ npm install
 ```
 *(All dependencies resolve cleanly with **0 vulnerabilities**.)*
 
-### 3. Place `librespot` in the project root
-Download or compile the `librespot` binary for your operating system and place it directly in the project root:
-* **Windows:** `librespot.exe`
-* **Linux / macOS:** `librespot`
+### 3. Verify Audio Devices
+To verify your virtual audio cable name or inspect DirectShow devices:
+```bash
+node bot.js --list-devices
+```
 
-### 4. Create your `.env` configuration
-Copy the template and edit it:
+### 4. Configure `.env`
 ```bash
 cp .env.example .env
 ```
-Fill in your configuration:
-```ini
-# Discord Application Configuration
-DISCORD_TOKEN=your_bot_token_here
-GUILD_ID=your_server_id_here
-VOICE_CHANNEL_ID=your_voice_channel_id_here
+Fill in your `DISCORD_TOKEN`, `GUILD_ID`, and `VOICE_CHANNEL_ID`.
 
-# Spotify Connect Configuration
-SPOTIFY_DEVICE_NAME=Discord Bot Speaker
-SPOTIFY_DEVICE_TYPE=computer
-SPOTIFY_BITRATE=160
+### 5. Start the bot
+```bash
+npm start
 ```
-
-### 5. Pair with Spotify on first launch
-On your first launch, the bot console will display an official pairing link:
-```
-Browse to: https://spotify.com/pair?code=XXXXXX
-If prompted, enter code: XXXXXX
-```
-Simply visit **[spotify.com/pair](https://spotify.com/pair)** in your browser, enter the code, and click **Pair**. 
-* No passwords needed!
-* Your authorization token will be safely cached in `.cache/` for all future launches.
 
 ---
 
@@ -142,16 +154,16 @@ Simply visit **[spotify.com/pair](https://spotify.com/pair)** in your browser, e
 To compile the application into a single standalone `.exe` that non-coders can launch with a double-click:
 
 ```bash
-# Windows
+# Windows x64
 npm run build:win
 
-# Linux
+# Linux x64
 npm run build:linux
 ```
 
-This uses `@yao-pkg/pkg` to generate `run-bot.exe` (or `run-bot` for Linux). The binary bundles the Node runtime and all JavaScript dependencies into one file.
+This uses `@yao-pkg/pkg` to generate `run-bot.exe`.
 
-> **Note:** Ensure `run-bot.exe`, `librespot.exe`, and `.env` are kept in the same folder when distributing.
+> **Note:** Ensure `run-bot.exe`, `ffmpeg.exe`, and `.env` are placed in the same folder when distributing.
 
 ---
 
@@ -159,37 +171,31 @@ This uses `@yao-pkg/pkg` to generate `run-bot.exe` (or `run-bot` for Linux). The
 
 | Variable | Required | Description |
 | :--- | :---: | :--- |
-| `DISCORD_TOKEN` | **Yes** | Your Discord Bot Token obtained from the [Discord Developer Portal](https://discord.com/developers/applications). |
+| `DISCORD_TOKEN` | **Yes** | Your Discord Bot Token from the [Discord Developer Portal](https://discord.com/developers/applications). |
 | `GUILD_ID` | **Yes** | The Discord Server (Guild) ID where the voice channel resides. |
 | `VOICE_CHANNEL_ID` | **Yes** | The Voice Channel ID the bot should join. |
-| `SPOTIFY_DEVICE_NAME` | No | Custom name that appears in your Spotify device list (Default: `Discord Bot Speaker`). |
-| `SPOTIFY_DEVICE_TYPE` | No | Displayed device type (Default: `computer`). Options: `computer`, `avr`, `tv`, `speaker`. |
-| `SPOTIFY_BITRATE` | No | Audio bitrate (kbps): `96`, `160` (default), or `320` (requires Spotify Premium). |
+| `AUDIO_DEVICE_NAME` | No | DirectShow recording device name (Default: `CABLE Output (VB-Audio Virtual Cable)`). |
 
 ---
 
 ## 🔍 Troubleshooting & FAQ
 
-#### 1. "Discord Bot Speaker" does not appear in Spotify Devices
-* **Cause:** By default, Spotify Connect uses mDNS/Zeroconf local network discovery. If the bot is on a different Wi-Fi band (2.4GHz vs 5GHz), a VPN, or a different subnet, mDNS packets may be blocked.
-* **Fix:** Fill in `SPOTIFY_USERNAME` and `SPOTIFY_PASSWORD` in your `.env` file. This forces `librespot` to register with Spotify's cloud access point directly, bypassing local LAN discovery.
+#### 1. Error: `Could not find audio recording device`
+* **Fix:** Make sure VB-CABLE is installed. Run `node bot.js --list-devices` (or `run-bot.exe --list-devices`) to list the exact names of all audio recording devices detected on your system. Copy the exact name into `AUDIO_DEVICE_NAME` in `.env`.
 
-#### 2. Bot joins the channel but plays no sound
-* Confirm your Spotify account has an active **Spotify Premium** subscription. Free accounts cannot stream through Spotify Connect / `librespot`.
-* Verify that the bot role in your Discord server has permissions to **Speak** and **Use Voice Activity**.
-* Ensure the volume in your Spotify app is turned up.
+#### 2. The bot is in the voice channel, but no sound is playing
+* **Check Spotify Volume Mixer:** Ensure Spotify's output is set specifically to **`CABLE Input (VB-Audio Virtual Cable)`** in Windows Volume Mixer, and that Spotify is actually playing.
+* **Check Discord Permissions:** Verify that the bot role in your Discord server has permissions to **Speak** and **Use Voice Activity**.
+* **Check Spotify Volume:** Make sure the volume slider inside Spotify is turned up.
 
-#### 3. Error: `librespot.exe was not found`
-* Ensure `librespot.exe` is placed in the exact same directory as `bot.js` (or `run-bot.exe`).
-
-#### 4. Audio stutters or buffers
-* Check CPU and internet bandwidth. In [`bot.js`](bot.js), you can change `--bitrate 320` to `--bitrate 160` to reduce bandwidth requirements.
+#### 3. Can I control playback from my phone?
+* **Yes!** As long as the Spotify Desktop app is running on your PC, open Spotify on your phone (connected to the same account or local Wi-Fi), tap the **Connect Devices** icon, and choose your computer. You can now use your phone as a full remote control.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [ISC License](LICENSE). Note that `librespot` is an independent open-source project licensed under the [GPLv3 License](https://github.com/librespot-org/librespot/blob/dev/LICENSE).
+This project is licensed under the [ISC License](LICENSE).
 
 ---
 
