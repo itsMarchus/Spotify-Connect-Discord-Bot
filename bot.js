@@ -22,7 +22,7 @@ require('dotenv').config({ path: path.join(appDir, '.env') });
 
 const isWindows = process.platform === 'win32';
 
-// Check if user requested listing available audio devices
+// Check if user requested listing available audio recording devices
 if (process.argv.includes('--list-devices')) {
   listAudioDevices();
   return;
@@ -52,7 +52,7 @@ const client = new Client({
 
 let audioPlayer = null;
 let voiceConnection = null;
-let activeAudioProcess = null;
+let audioCaptureProcess = null;
 let isShuttingDown = false;
 
 client.once('clientReady', async () => {
@@ -84,13 +84,12 @@ client.once('clientReady', async () => {
   voiceConnection.subscribe(audioPlayer);
 
   voiceConnection.on(VoiceConnectionStatus.Ready, () => {
-    console.log('[Voice] Voice connection ready. Initializing audio pipeline...');
-    startAudioPipeline();
+    console.log('[Voice] Voice connection ready. Initializing audio capture...');
+    startAudioCapture();
   });
 
   voiceConnection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
-      // Attempt reconnection if disconnected temporarily
       await Promise.race([
         entersState(voiceConnection, VoiceConnectionStatus.Signalling, 5_000),
         entersState(voiceConnection, VoiceConnectionStatus.Connecting, 5_000),
@@ -106,20 +105,11 @@ client.once('clientReady', async () => {
   });
 });
 
-function startAudioPipeline() {
-  const mode = (process.env.AUDIO_MODE || 'cable').toLowerCase();
-  if (mode === 'librespot') {
-    startLibrespotPipe();
-  } else {
-    startCablePipe();
-  }
-}
-
 /**
- * Plan B: Captures audio from a virtual audio cable (e.g. VB-CABLE) using ffmpeg.
- * Official Spotify Desktop streams to VB-CABLE, eliminating DRM / AudioKeyError issues.
+ * Captures audio from the virtual audio cable (e.g. VB-CABLE) using ffmpeg
+ * and streams it directly to Discord Voice as 48kHz stereo raw PCM.
  */
-function startCablePipe() {
+function startAudioCapture() {
   cleanupAudioProcess();
 
   const binaryName = isWindows ? 'ffmpeg.exe' : 'ffmpeg';
@@ -130,7 +120,6 @@ function startCablePipe() {
   }
 
   const deviceName = process.env.AUDIO_DEVICE_NAME || 'CABLE Output (VB-Audio Virtual Cable)';
-  console.log(`[Audio Mode] VB-CABLE Loopback (Spotify Desktop App)`);
   console.log(`[Audio] Capturing from: "${deviceName}"...`);
 
   let args = [];
@@ -167,7 +156,7 @@ function startCablePipe() {
   }
 
   try {
-    activeAudioProcess = spawn(binaryPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    audioCaptureProcess = spawn(binaryPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (err) {
     console.error(`\n[Audio Error] Failed to launch ffmpeg: ${err.message}`);
     console.error(`Ensure "${binaryName}" is in the bot directory or installed on system PATH.\n`);
@@ -176,23 +165,23 @@ function startCablePipe() {
 
   const audioStream = new PassThrough();
 
-  activeAudioProcess.stdout.on('data', (chunk) => {
+  audioCaptureProcess.stdout.on('data', (chunk) => {
     audioStream.write(chunk);
   });
 
-  activeAudioProcess.stdout.on('end', () => audioStream.end());
-  activeAudioProcess.stdout.on('error', (err) => audioStream.destroy(err));
+  audioCaptureProcess.stdout.on('end', () => audioStream.end());
+  audioCaptureProcess.stdout.on('error', (err) => audioStream.destroy(err));
 
   let stderrOutput = '';
-  activeAudioProcess.stderr.on('data', (chunk) => {
+  audioCaptureProcess.stderr.on('data', (chunk) => {
     stderrOutput += chunk.toString();
   });
 
-  activeAudioProcess.on('error', (err) => {
+  audioCaptureProcess.on('error', (err) => {
     console.error('[Audio Capture Error]', err.message);
   });
 
-  activeAudioProcess.on('close', (code) => {
+  audioCaptureProcess.on('close', (code) => {
     if (code !== 0 && code !== null && !isShuttingDown) {
       console.error(`[Audio Capture] ffmpeg exited with code ${code}.`);
       if (stderrOutput.includes('Could not find') || stderrOutput.includes('audio only device')) {
@@ -222,94 +211,6 @@ function startCablePipe() {
 
   audioPlayer.on('error', (err) => {
     console.error('[Playback Error]', err.message);
-  });
-}
-
-/**
- * Plan A: Direct Spotify Connect endpoint using librespot.
- * Suitable for older accounts not blocked by server-side key restrictions.
- */
-function startLibrespotPipe() {
-  cleanupAudioProcess();
-
-  const binaryName = isWindows ? 'librespot.exe' : 'librespot';
-  const binaryPath = path.resolve(appDir, binaryName);
-
-  if (!fs.existsSync(binaryPath)) {
-    console.error(`\n[Spotify Error] "${binaryName}" was not found!`);
-    console.error(`Expected location: ${binaryPath}`);
-    console.error(`Download librespot from: https://github.com/librespot-org/librespot/releases`);
-    console.error(`Place "${binaryName}" in the same folder as this bot, then restart.\n`);
-    return;
-  }
-
-  const deviceName = process.env.SPOTIFY_DEVICE_NAME || 'Discord Bot Speaker';
-  const deviceType = process.env.SPOTIFY_DEVICE_TYPE || 'computer';
-  const bitrate = process.env.SPOTIFY_BITRATE || '160';
-  const cacheDir = path.join(appDir, '.cache');
-
-  const args = [
-    '--name', deviceName,
-    '--device-type', deviceType,
-    '--backend', 'pipe',
-    '--initial-volume', '100',
-    '--bitrate', bitrate,
-    '--cache', cacheDir
-  ];
-
-  const credentialsFile = path.join(cacheDir, 'credentials.json');
-  if (!fs.existsSync(credentialsFile)) {
-    console.log('[Spotify Auth] No credentials found. Enabling device pairing via spotify.com/pair...');
-    args.push('--enable-device-auth');
-  }
-
-  console.log(`[Audio Mode] librespot Direct Connect Endpoint`);
-  console.log(`[Spotify] Launching librespot as "${deviceName}"...`);
-  activeAudioProcess = spawn(binaryPath, args, { stdio: ['ignore', 'pipe', 'inherit'] });
-
-  const audioStream = new PassThrough();
-
-  activeAudioProcess.stdout.on('data', (chunk) => {
-    const text = chunk.toString('utf8');
-    if (text.includes('spotify.com/pair') || text.includes('Browse to:')) {
-      console.log('\n====================================================');
-      console.log('       SPOTIFY DEVICE AUTHENTICATION REQUIRED       ');
-      console.log('====================================================');
-      console.log(text.trim());
-      console.log('====================================================\n');
-      return;
-    }
-    audioStream.write(chunk);
-  });
-
-  activeAudioProcess.stdout.on('end', () => audioStream.end());
-  activeAudioProcess.stdout.on('error', (err) => audioStream.destroy(err));
-
-  const resource = createAudioResource(audioStream, {
-    inputType: StreamType.Raw,
-    inlineVolume: true
-  });
-
-  audioPlayer.play(resource);
-
-  audioPlayer.on(AudioPlayerStatus.Playing, () => {
-    console.log('[Playback] Audio streaming to Discord voice channel.');
-  });
-
-  audioPlayer.on(AudioPlayerStatus.Idle, () => {
-    console.log('[Playback] Audio stream paused/idle.');
-  });
-
-  audioPlayer.on('error', (err) => {
-    console.error('[Playback Error]', err.message);
-  });
-
-  activeAudioProcess.on('error', (err) => {
-    console.error('[Spotify] Process execution failed:', err.message);
-  });
-
-  activeAudioProcess.on('close', (code) => {
-    console.log(`[Spotify] librespot exited with code ${code}.`);
   });
 }
 
@@ -355,13 +256,13 @@ function listAudioDevices() {
 }
 
 function cleanupAudioProcess() {
-  if (activeAudioProcess) {
+  if (audioCaptureProcess) {
     try {
-      activeAudioProcess.kill('SIGINT');
+      audioCaptureProcess.kill('SIGINT');
     } catch {
       // Process already terminated
     }
-    activeAudioProcess = null;
+    audioCaptureProcess = null;
   }
 }
 
@@ -373,7 +274,7 @@ function cleanup() {
     try {
       voiceConnection.destroy();
     } catch {
-      // Connection already destroyed
+      // Connection already terminated
     }
     voiceConnection = null;
   }
