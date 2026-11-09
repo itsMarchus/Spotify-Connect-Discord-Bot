@@ -58,6 +58,18 @@ flowchart LR
 
 ---
 
+## 🖥️ Platform Compatibility
+
+| Operating System | Status | Audio Pipeline | Distribution |
+| :--- | :---: | :--- | :--- |
+| **Windows (10 / 11)** | ✅ **Supported** | VB-Audio Virtual Cable (DirectShow) | Standalone `run-bot.exe` pre-packaged ZIP |
+| **Linux (Ubuntu / Debian / Arch)** | 📋 **Planned** | PulseAudio / PipeWire Virtual Null Sink | Source execution (`npm start`) |
+| **macOS (Intel / Apple Silicon)** | 📋 **Planned** | [BlackHole](https://github.com/ExistentialAudio/BlackHole) Virtual Driver (AVFoundation) | Source execution (`npm start`) |
+
+> 💡 **Community Feedback:** If you would like to help test or contribute native setups for Linux or macOS, please join the discussion on our [Tracking Issue](../../issues).
+
+---
+
 ## 📋 Prerequisites
 
 | Requirement | Details | Why it's needed |
