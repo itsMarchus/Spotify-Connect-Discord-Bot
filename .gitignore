@@ -6,6 +6,7 @@ node_modules/
 
 # Binary Executables
 *.exe
+*.zip
 run-bot
 
 # Logs & Debug
