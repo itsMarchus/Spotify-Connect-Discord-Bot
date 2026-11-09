@@ -1,1 +1,13 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment Variables & Secrets
+.env
+
+# Binary Executables
+*.exe
+run-bot
+
+# Logs & Debug
+*.log
+npm-debug.log*
