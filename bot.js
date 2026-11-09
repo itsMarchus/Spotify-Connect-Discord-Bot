@@ -46,7 +46,7 @@ let voiceConnection = null;
 let spotifyProcess = null;
 let isShuttingDown = false;
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   console.log(`[Bot] Authenticated as ${client.user.tag}`);
 
   const guild = client.guilds.cache.get(process.env.GUILD_ID);
