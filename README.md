@@ -121,16 +121,19 @@ VOICE_CHANNEL_ID=your_voice_channel_id_here
 
 # Spotify Connect Configuration
 SPOTIFY_DEVICE_NAME=Discord Bot Speaker
-
-# Optional: Spotify Credentials (only required if connecting across subnets / VPS)
-SPOTIFY_USERNAME=
-SPOTIFY_PASSWORD=
+SPOTIFY_DEVICE_TYPE=computer
+SPOTIFY_BITRATE=160
 ```
 
-### 5. Run the bot
-```bash
-npm start
+### 5. Pair with Spotify on first launch
+On your first launch, the bot console will display an official pairing link:
 ```
+Browse to: https://spotify.com/pair?code=XXXXXX
+If prompted, enter code: XXXXXX
+```
+Simply visit **[spotify.com/pair](https://spotify.com/pair)** in your browser, enter the code, and click **Pair**. 
+* No passwords needed!
+* Your authorization token will be safely cached in `.cache/` for all future launches.
 
 ---
 
@@ -160,8 +163,8 @@ This uses `@yao-pkg/pkg` to generate `run-bot.exe` (or `run-bot` for Linux). The
 | `GUILD_ID` | **Yes** | The Discord Server (Guild) ID where the voice channel resides. |
 | `VOICE_CHANNEL_ID` | **Yes** | The Voice Channel ID the bot should join. |
 | `SPOTIFY_DEVICE_NAME` | No | Custom name that appears in your Spotify device list (Default: `Discord Bot Speaker`). |
-| `SPOTIFY_USERNAME` | No | Your Spotify username/email. Only required if discovery across subnets, VPNs, or cloud servers fails. |
-| `SPOTIFY_PASSWORD` | No | Your Spotify password. Only required if `SPOTIFY_USERNAME` is provided. |
+| `SPOTIFY_DEVICE_TYPE` | No | Displayed device type (Default: `computer`). Options: `computer`, `avr`, `tv`, `speaker`. |
+| `SPOTIFY_BITRATE` | No | Audio bitrate (kbps): `96`, `160` (default), or `320` (requires Spotify Premium). |
 
 ---
 
