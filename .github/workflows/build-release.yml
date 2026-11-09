@@ -27,12 +27,19 @@ jobs:
       - name: Build Windows Executable
         run: npm run build:win
 
+      - name: Fetch Portable FFmpeg Binary
+        shell: pwsh
+        run: |
+          curl.exe -L -o ffmpeg.zip https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.4.1/ffmpeg-4.4.1-win-64.zip
+          tar.exe -xf ffmpeg.zip
+          Remove-Item ffmpeg.zip
+
       - name: Package Windows Release Archive
         shell: pwsh
         run: |
           mkdir release-win
           Copy-Item run-bot.exe release-win/
-          Copy-Item (Get-Command ffmpeg).Source release-win/
+          Copy-Item ffmpeg.exe release-win/
           Copy-Item .env.example release-win/
           Copy-Item README.md release-win/
           Copy-Item LICENSE release-win/
