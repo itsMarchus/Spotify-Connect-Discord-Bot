@@ -1,3 +1,9 @@
+// Ensure pkg statically bundles opusscript and prism-media into standalone binary snapshots
+try {
+  require('opusscript');
+  require('prism-media');
+} catch (_) {}
+
 const { Client, GatewayIntentBits } = require('discord.js');
 const {
   joinVoiceChannel,
@@ -16,6 +22,30 @@ const fs = require('fs');
 // Support both standalone executable (pkg) and standard node execution
 const isPkg = typeof process.pkg !== 'undefined';
 const appDir = isPkg ? path.dirname(process.execPath) : process.cwd();
+
+// Helper to prevent the terminal window from closing immediately when run by double-clicking
+function pauseAndExit(code = 1) {
+  if (isPkg && process.stdin.isTTY) {
+    console.log('\nPress any key to exit...');
+    try {
+      const buf = Buffer.alloc(1);
+      fs.readSync(0, buf, 0, 1);
+    } catch (_) {}
+  }
+  process.exit(code);
+}
+
+// Keep the console window open on unexpected crashes in standalone executables
+if (isPkg) {
+  process.on('uncaughtException', (err) => {
+    console.error('\n[Fatal Error]', err);
+    pauseAndExit(1);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('\n[Unhandled Rejection]', reason);
+    pauseAndExit(1);
+  });
+}
 
 // Load .env from the application directory
 require('dotenv').config({ path: path.join(appDir, '.env') });
@@ -40,7 +70,7 @@ if (missingEnv.length > 0) {
   console.error(`\n[Configuration Error] Missing required environment variable(s) in .env:`);
   missingEnv.forEach(key => console.error(`  - ${key}`));
   console.error(`\nPlease configure them in: ${path.join(appDir, '.env')}\n`);
-  process.exit(1);
+  pauseAndExit(1);
 }
 
 const client = new Client({
@@ -61,13 +91,13 @@ client.once('clientReady', async () => {
   const guild = client.guilds.cache.get(process.env.GUILD_ID);
   if (!guild) {
     console.error(`[Error] Target Guild ID (${process.env.GUILD_ID}) not found. Verify your bot is invited to the server.`);
-    process.exit(1);
+    pauseAndExit(1);
   }
 
   const voiceChannel = guild.channels.cache.get(process.env.VOICE_CHANNEL_ID);
   if (!voiceChannel) {
     console.error(`[Error] Target Voice Channel ID (${process.env.VOICE_CHANNEL_ID}) not found in server "${guild.name}".`);
-    process.exit(1);
+    pauseAndExit(1);
   }
 
   console.log(`[Voice] Connecting to channel: "${voiceChannel.name}" in "${guild.name}"...`);
@@ -230,7 +260,7 @@ function listAudioDevices() {
     proc = spawn(binaryPath, ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], { stdio: ['ignore', 'ignore', 'pipe'] });
   } catch (err) {
     console.error(`Failed to execute "${binaryName}": ${err.message}`);
-    process.exit(1);
+    pauseAndExit(1);
   }
 
   let output = '';
@@ -251,7 +281,7 @@ function listAudioDevices() {
 
   proc.on('error', (err) => {
     console.error(`[Error] ffmpeg execution error: ${err.message}`);
-    process.exit(1);
+    pauseAndExit(1);
   });
 }
 
@@ -298,5 +328,5 @@ client.on('error', (err) => {
 
 client.login(process.env.DISCORD_TOKEN).catch((err) => {
   console.error('[Auth Error] Failed to login to Discord:', err.message);
-  process.exit(1);
+  pauseAndExit(1);
 });
