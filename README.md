@@ -126,6 +126,10 @@ Double-click **`run-bot.exe`**.
 * The bot will join your designated voice channel.
 * Open Spotify on your phone (or PC), select your PC under the **Devices / Connect** menu, and start playing music!
 
+> [!NOTE]
+> **Windows Defender / SmartScreen Warning:**  
+> On your first launch, Windows SmartScreen may display a popup saying *"Windows protected your PC"*. This is expected for newly compiled open-source executables without expensive corporate code-signing certificates. Click **"More info"** and then **"Run anyway"**.
+
 ---
 
 ## 🛠️ Developer Setup (Running from Source)
@@ -202,6 +206,10 @@ This uses `@yao-pkg/pkg` to generate `run-bot.exe`.
 
 #### 3. Can I control playback from my phone?
 * **Yes!** As long as the Spotify Desktop app is running on your PC, open Spotify on your phone (connected to the same account or local Wi-Fi), tap the **Connect Devices** icon, and choose your computer. You can now use your phone as a full remote control.
+
+#### 4. Windows SmartScreen or Antivirus blocks `run-bot.exe`
+* **Why it happens:** Windows SmartScreen flags newly downloaded executables that lack expensive commercial EV code-signing certificates.
+* **How to run:** When the blue popup appears, click **"More info"** $\rightarrow$ **"Run anyway"**. Alternatively, right-click `run-bot.exe` $\rightarrow$ select **Properties** $\rightarrow$ check **"Unblock"** at the bottom $\rightarrow$ click **Apply**.
 
 ---
 
