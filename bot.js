@@ -1,7 +1,21 @@
 // Ensure pkg statically bundles opusscript and prism-media into standalone binary snapshots
 try {
-  require('opusscript');
+  const OriginalOpusScript = require('opusscript');
   require('prism-media');
+
+  // If WASM binary loading fails in pkg snapshot, seamlessly fallback to the pure JS asm.js (nasm) backend
+  function WrappedOpusScript(samplingRate, channels, application, options) {
+    try {
+      return new OriginalOpusScript(samplingRate, channels, application, options);
+    } catch (_) {
+      return new OriginalOpusScript(samplingRate, channels, application, Object.assign({}, options, { wasm: false }));
+    }
+  }
+  Object.assign(WrappedOpusScript, OriginalOpusScript);
+  WrappedOpusScript.prototype = OriginalOpusScript.prototype;
+  if (require.cache[require.resolve('opusscript')]) {
+    require.cache[require.resolve('opusscript')].exports = WrappedOpusScript;
+  }
 } catch (_) {}
 
 const { Client, GatewayIntentBits } = require('discord.js');

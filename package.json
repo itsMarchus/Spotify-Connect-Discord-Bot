@@ -5,13 +5,16 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "build:win": "pkg bot.js --targets node22-win-x64 --output run-bot.exe",
-    "build:linux": "pkg bot.js --targets node22-linux-x64 --output run-bot"
+    "build:win": "pkg bot.js --config package.json --targets node22-win-x64 --output run-bot.exe",
+    "build:linux": "pkg bot.js --config package.json --targets node22-linux-x64 --output run-bot"
   },
   "pkg": {
+    "scripts": [
+      "node_modules/opusscript/**/*.js"
+    ],
     "assets": [
-      "node_modules/opusscript/**/*",
-      "node_modules/prism-media/**/*"
+      "node_modules/opusscript/**/*.wasm",
+      "node_modules/opusscript/**/*"
     ]
   },
   "keywords": [],
